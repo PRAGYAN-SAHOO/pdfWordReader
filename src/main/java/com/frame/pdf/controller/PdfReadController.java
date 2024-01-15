@@ -31,13 +31,7 @@ public class PdfReadController {
 		return ResponseEntity.ok(pdfReaderService.readPDFAndGetContent(file));
 	}
 
-	/*
-	 * // not used one
-	 * 
-	 * @PostMapping("/get-valid-spell-word-count") public ResponseEntity<Map<String,
-	 * Integer>> getValidSpellWordCount(@RequestBody MultipartFile file) { return
-	 * ResponseEntity.ok(pdfReaderService.findValidSpellWordAndTheirCount(file)); }
-	 */
+	
 
 	//	API to fetch the word and counts, sorted by count and then word
 	@PostMapping("/fetch-word-count-sort")

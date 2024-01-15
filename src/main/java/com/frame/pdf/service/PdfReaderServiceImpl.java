@@ -3,12 +3,15 @@ package com.frame.pdf.service;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.apache.commons.text.similarity.LevenshteinDistance;
 import org.slf4j.Logger;
@@ -25,6 +28,9 @@ import com.swabunga.spell.event.SpellChecker;
 public class PdfReaderServiceImpl implements PdfReaderService {
 
 	private final Logger logger = LoggerFactory.getLogger(PdfReaderServiceImpl.class);
+	private String word;
+
+	
 
 	@Override
 	public String readPDFAndGetContent(MultipartFile file) {
@@ -44,35 +50,7 @@ public class PdfReaderServiceImpl implements PdfReaderService {
 		return new String(contentOfPDf);
 	}
 
-	// not used
-	@Override
-	public Map<String, Integer> findValidSpellWordAndTheirCount(MultipartFile file) {
-		String fileContent = readPDFAndGetContent(file);
-		// logger.info(fileContent);
-		SpellChecker spellChecker = new SpellChecker();
-		// spellChecker.addDictionary(new Gen);
-		// spellChecker.isSpellingCorrect("Buiillm");
-
-		// System.out.println("spellChecker *** :"+spellChecker.getSuggestions("ABABA",
-		// 2));
-
-		Map<String, Long> correctWords = new HashMap<>();
-		for (String eachWord : Arrays.asList(fileContent.split(" "))) {
-			System.out.println(eachWord);
-			System.out.println(spellChecker.isCorrect(eachWord));
-			if (spellChecker.isCorrect(eachWord)) {
-				correctWords.put(eachWord, correctWords.getOrDefault(eachWord, 0l) + 1);
-			}
-		}
-
-		Map<String, Integer> nonReaptWordLength = new HashMap<>();
-		for (String key : correctWords.keySet()) {
-			nonReaptWordLength.put(key, key.length());
-		}
-		return nonReaptWordLength;
-	}
-
-	// check spelling errors 
+	// check spelling errors
 	public String validSpellCheck(MultipartFile file) {
 		// Check if the word is valid
 		String pdfText = readPDFAndGetContent(file);
@@ -81,12 +59,12 @@ public class PdfReaderServiceImpl implements PdfReaderService {
 
 		for (String word : wordsInPDF) {
 			if (!isValidWord(word)) {
-				//result=word;
+				// result=word;
 				System.out.println("Spelling error: " + word);
 			}
-			result=word;
+			result = word;
 		}
-		return "Spelling error : "+result ;
+		return "Spelling error : " + result;
 	}
 
 	private List<String> extractWords(String text) {
@@ -115,75 +93,49 @@ public class PdfReaderServiceImpl implements PdfReaderService {
 // API to fetch the word and counts, sorted by count and then word
 
 	public Map<String, Integer> sortByCountAndWords(MultipartFile file) {
-		// Fetch words and count occurrences
 		String text = readPDFAndGetContent(file);
 		Map<String, Integer> wordCounts = countWords(text);
 
-		// Sort by count and then word
-		List<Map.Entry<String, Integer>> sortedList = sortWordCounts(wordCounts);
-		Map<String, Integer> sortedMap = new LinkedHashMap<>();
-		// Print sorted word counts
-		for (Map.Entry<String, Integer> entry : sortedList) {
-			System.out.println("Word: " + entry.getKey() + ", Count: " + entry.getValue());
-			sortedMap.put(entry.getKey(), entry.getValue());
-		}
-		// return "Word: " + entry.getKey() + ", Count: " + entry.getValue();
+		// Sort by count and then word using Java streams
+		Map<String, Integer> sortedMap = wordCounts.entrySet().stream()
+				.sorted(Comparator.<Map.Entry<String, Integer>>comparingInt(Map.Entry::getValue).reversed()
+						.thenComparing(Map.Entry::getKey))
+				.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (e1, e2) -> e1, LinkedHashMap::new));
 
-		// Return the sorted map
+		// Print and return the sorted map
+		sortedMap.forEach((word, count) -> System.out.println("Word: " + word + ", Count: " + count));
 
 		return sortedMap;
 	}
 
-// count word
 	private static Map<String, Integer> countWords(String text) {
-		Map<String, Integer> wordCounts = new HashMap<>();
-
-		String[] words = text.split("\\s+");
-		for (String word : words) {
-			wordCounts.put(word, wordCounts.getOrDefault(word, 0) + 1);
-		}
-
-		return wordCounts;
-	}
-
-	// sort word count
-	private static List<Map.Entry<String, Integer>> sortWordCounts(Map<String, Integer> wordCounts) {
-		List<Map.Entry<String, Integer>> entries = new ArrayList<>(wordCounts.entrySet());
-
-		// Custom comparator to sort by count (descending) and then word (ascending)
-		Comparator<Map.Entry<String, Integer>> comparator = Comparator.<Map.Entry<String, Integer>>comparingInt(
-				Map.Entry::getValue).reversed().thenComparing(Map.Entry::getKey);
-
-		entries.sort(comparator);
-
-		return entries;
-
+		return Arrays.stream(text.split("\\s+"))
+				.collect(Collectors.toMap(word -> word, word -> 1, Integer::sum, HashMap::new));
 	}
 
 	// API where a word is given, and gives list of words near to the word and their
 	// count. (String distance)
 
-	public Map<String, Integer>  getNearbyWords(MultipartFile file) {
-		List<String> words = new ArrayList<>();
-		Map<String, Integer> result =new HashMap<>();
+	public Map<String, Integer> getNearbyWords(MultipartFile file) {
 		int distanceThreshold = 2;
-		String word = readPDFAndGetContent(file);
-		words.add(word);
+
+		String content = readPDFAndGetContent(file);
+		List<String> words = Collections.singletonList(content);
+
+		Map<String, Integer> combinedResult = new HashMap<>();
+
 		WordDistanceAPI api = new WordDistanceAPI(words);
-		String inputWord = "javac";
-		for(String input:words) {
-		
 
-		result= api.getWordsNear(input, distanceThreshold);
-		System.out.println("Result :"+result);
-		}
-		Map<String, Integer> sortedMap = new LinkedHashMap<>();
+		for (String word : words) {
 
-		System.out.println("Words near '" + inputWord + "' with distance <= " + distanceThreshold + ":");
-		for (Map.Entry<String, Integer> entry : result.entrySet()) {
-			sortedMap.put(entry.getKey(),entry.getValue());
-			System.out.println(entry.getKey() + " (Distance: " + entry.getValue() + ")");
+			Map<String, Integer> result = api.getWordsNear(word, distanceThreshold);
+			combinedResult.putAll(result);
+
+			result.forEach((key, value) -> System.out.println(key + " (Distance: " + value + ")"));
 		}
-		return sortedMap;
+
+		System.out.println("Combined results: " + combinedResult);
+
+		return new LinkedHashMap<>(combinedResult);
 	}
 }
